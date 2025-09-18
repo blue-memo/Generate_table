@@ -1,69 +1,751 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>منصة تنظيم الجداول</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>منصة تنظيم الجداول — نسخة محسنة</title>
+
+  <!-- خط عرض (CSS فقط للـ UI) -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+
   <style>
-    /* Reset */
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Cairo", sans-serif; }
-    body { background: #0f172a; color: #f8fafc; line-height: 1.6; }
-    h1 { text-align: center; font-size: 2rem; margin: 20px 0; color: #38bdf8; }
+    :root{
+      --bg:#071029; --card:#0f1b2a; --accent:#06b6d4; --muted:#9fb0c9; --glass: rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box}
+    body{font-family:"Cairo",system-ui,Arial; background:linear-gradient(180deg,#021027 0%,#08172a 100%); color:#e6eef8; margin:0; padding:28px;}
+    h1{font-size:20px;text-align:center;color:var(--accent);margin-bottom:10px}
+    .wrap{max-width:1100px;margin:0 auto}
+    .top{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(3,8,20,.6);border:1px solid var(--glass)}
+    textarea{width:100%;min-height:180px;padding:14px;border-radius:9px;background:#071528;border:1px solid rgba(255,255,255,.03);color:#dff3ff;resize:vertical}
+    .controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    button{background:linear-gradient(135deg,#3b82f6,#06b6d4);border:0;padding:10px 12px;border-radius:10px;color:#002;cursor:pointer;font-weight:700}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,.05);color:var(--muted)}
+    .cols{display:grid;grid-template-columns:1fr 420px;gap:18px;margin-top:18px}
+    .output{margin-top:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);border-radius:10px;padding:12px;border:1px solid rgba(255,255,255,.02)}
+    ul{list-style:none;padding:0;margin:0;max-height:420px;overflow:auto}
+    ul li{padding:8px;border-bottom:1px solid rgba(255,255,255,.03)}
+    .schedule{margin-top:16px;overflow:auto}
+    table{width:100%;border-collapse:collapse;background:transparent}
+    th,td{padding:10px;border:1px solid rgba(255,255,255,.04);text-align:center;font-size:14px}
+    th{background:rgba(6,182,212,.12);color:var(--accent)}
+    .note{color:var(--muted);font-size:13px;margin-top:8px}
+    @media(max-width:980px){.cols{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>منصة تنظيم الجداول — أداة واحدة متكاملة</h1>
+      <div class="note">الصق النص الخام — الأداة تحاول إصلاح الترميز تلقائيًا وتستخرج المواد والشُعب وتصدر النتائج.</div>
+    </div>
 
-    .container {
-      max-width: 1200px;
-      margin: auto;
-      padding: 20px;
+    <div class="card">
+      <label for="inputText" class="note">📋 الصق النص هنا (سطر/بلوك):</label>
+      <textarea id="inputText" placeholder="مثال: تشريح بيطري (2) - شعبة 1 (ثل 9:00**10:00)"></textarea>
+
+      <div class="controls">
+        <button id="btnExtract">📑 استخراج المواد</button>
+        <button id="btnMakeTable">📅 إنشاء جدول</button>
+        <button id="btnTXT">⬇️ تحميل TXT</button>
+        <button id="btnExcel">⬇️ تحميل Excel</button>
+        <button id="btnPDF">⬇️ تحميل PDF</button>
+        <button id="btnClear" class="ghost">مسح الحقل</button>
+      </div>
+
+      <div class="cols" style="margin-top:14px">
+        <div class="card">
+          <h3 style="margin:0 0 8px;color:var(--accent)">📌 قائمة المواد والشُعب</h3>
+          <div class="output" id="listWrap"><ul id="courseList"></ul></div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin:0 0 8px;color:var(--accent)">⚙ معاينة الجدول</h3>
+          <div class="output schedule" id="scheduleContainer">
+            <div class="note">اضغط "إنشاء جدول" لعرض الجدول هنا.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="note" style="text-align:center;margin-top:12px">تم تطويرها بــ HTML/CSS/JS فقط — تدعم إصلاح الترميز العربي وتصدير PDF (صورة) لحل مشاكل التشكيل والخطوط.</p>
+  </div>
+
+  <!-- مكتبات -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script>
+  /**************************************************************************
+   * نسخة محسّنة — إصلاح ترميز النص (mojibake) + استخراج متكامل + تصدير
+   * فكرة مهمة: لتحميل PDF نستخدم html2canvas → صورة → jsPDF
+   * هذا يتجنب مشاكل تشكيل الحروف العربية داخل jsPDF نفسه.
+   **************************************************************************/
+
+  let extractedData = [];
+
+  // 1) إصلاح الترميز إن لزم
+  function fixEncoding(str) {
+    if (!str || typeof str !== 'string') return str;
+    // Try a safe conversion. Only use converted version if it produces Arabic letters
+    try {
+      const converted = decodeURIComponent(escape(str));
+      const hasArabicOrig = /[\u0600-\u06FF]/.test(str);
+      const hasArabicConv = /[\u0600-\u06FF]/.test(converted);
+      // If conversion yields Arabic when original doesn't — use it.
+      if (hasArabicConv && !hasArabicOrig) return converted;
+      return str;
+    } catch (e) {
+      return str;
+    }
+  }
+
+  // 2) دالة مساعدة لتنظيف السطر
+  function normalizeLine(s) {
+    return s.replace(/\u00A0/g,' ').replace(/\t+/g,' ').replace(/\s+/g,' ').trim();
+  }
+
+  // 3) دالة تحليل سطر واحد — تدعم أنماط متعددة
+  function parseCourseLine(line) {
+    line = normalizeLine(line);
+    if (!line) return null;
+
+    // Attempt: split by dash (first dash) to separate course name and details
+    let coursePart = line;
+    let rest = '';
+    const dashMatch = line.match(/[-–—]/);
+    if (dashMatch) {
+      const idx = line.indexOf(dashMatch[0]);
+      coursePart = line.slice(0, idx).trim();
+      rest = line.slice(idx + 1).trim();
     }
 
-    textarea {
-      width: 100%;
-      height: 180px;
-      padding: 15px;
-      background: #1e293b;
-      color: #f1f5f9;
-      border: 2px solid #334155;
-      border-radius: 12px;
-      font-size: 1rem;
-      resize: vertical;
-      transition: .3s;
-    }
-    textarea:focus { border-color: #38bdf8; outline: none; }
+    // If pattern "اسم - شعبة X (day time**time)" common:
+    // extract section (شعبة)
+    let section = '';
+    const sec1 = rest.match(/شعبة\s*([^\s()]+)/i) || coursePart.match(/شعبة\s*([^\s()]+)/i);
+    if (sec1) section = sec1[1].trim();
 
-    .buttons {
-      margin: 15px 0;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    button {
-      padding: 10px 18px;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 1rem;
-      font-weight: bold;
-      background: linear-gradient(135deg,#3b82f6,#06b6d4);
-      color: white;
-      transition: .3s;
-    }
-    button:hover { transform: scale(1.05); }
+    // extract parentheses content (likely day/time)
+    let day = '', time = '', room = '';
+    let paren = (rest.match(/\(([^)]+)\)/) || coursePart.match(/\(([^)]+)\)/));
+    if (paren) {
+      const inside = paren[1];
+      // time pattern like 9:00**11:30 (with ** or maybe - or to)
+      const timeMatch = inside.match(/(\d{1,2}:\d{2})\s*\*{2}\s*(\d{1,2}:\d{2})/) ||
+                        inside.match(/(\d{1,2}:\d{2})\s*[-–to]{1,3}\s*(\d{1,2}:\d{2})/i);
+      if (timeMatch) time = `${timeMatch[1]} - ${timeMatch[2]}`;
 
-    .output {
-      margin-top: 20px;
-      background: #1e293b;
-      padding: 20px;
-      border-radius: 12px;
-    }
-    .output h2 { margin-bottom: 10px; color: #38bdf8; }
+      // day detection (short forms used in your data)
+      const dayMatch = inside.match(/\b(حد|أحد|الاحد|ثن|اثنين|ثل|الثلاثاء|ربع|الاربعاء|خميس|الجمعة|سبت|السبت)\b/i);
+      if (dayMatch) day = dayMatch[1];
 
-    ul { list-style: none; }
-    ul li {
-      padding: 6px 0;
-      border-bottom: 1px solid #334155;
+      // room: words like NB53, SF07, LAB, U, SG17, SF06 etc
+      const roomMatch = inside.match(/\b(NB\d+|SF\d+|SG\d+|LAB|U|[A-Z]{2,}\d{0,})\b/i);
+      if (roomMatch) room = roomMatch[1];
+    } else {
+      // fallback: try to find time/day/room in rest without parentheses
+      const timeMatch = rest.match(/(\d{1,2}:\d{2})\s*\*{2}\s*(\d{1,2}:\d{2})/) ||
+                        rest.match(/(\d{1,2}:\d{2})\s*[-–to]{1,3}\s*(\d{1,2}:\d{2})/i);
+      if (timeMatch) time = `${timeMatch[1]} - ${timeMatch[2]}`;
+      const dayMatch = rest.match(/\b(حد|أحد|الاحد|ثن|اثنين|ثل|الثلاثاء|ربع|الاربعاء|خميس|الجمعة|سبت|السبت)\b/i);
+      if (dayMatch) day = dayMatch[1];
+      const roomMatch = rest.match(/\b(NB\d+|SF\d+|SG\d+|LAB|U|[A-Z]{2,}\d{0,})\b/i);
+      if (roomMatch) room = roomMatch[1];
     }
 
-    /* جدول */
+    // final cleanup of course name: remove trailing 'شعبة ...' in case included
+    let course = coursePart.replace(/\bشعبة\b.*$/i,'').trim();
+    if (!course && rest) {
+      // sometimes course is on the right side
+      course = rest.replace(/\bشعبة\b.*$/i,'').trim();
+    }
+
+    if (!course) return null;
+    return { course, section, day, time, room, raw: line };
+  }
+
+  // 4) الدالة الرئيسية للاستخراج — تدعم بلوكات بتنسيق "اسم المساق:" و كذلك سطور مفردة
+  function extractCourses() {
+    const raw = document.getElementById('inputText').value || '';
+    const fixed = fixEncoding(raw);
+    const lines = fixed.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+    extractedData = [];
+
+    const fullText = lines.join('\n');
+
+    // Case A: block-style input containing "اسم المساق" => parse blocks
+    if (/اسم المساق/i.test(fullText) || /رمز المساق/i.test(fullText)) {
+      // split into blocks by "رقم السطر" or "رمز المساق" or blank lines
+      const blocks = fullText.split(/\r?\n(?=رقم السطر:|رمز المساق:|اسم المساق:)/i);
+      for (const block of blocks) {
+        const bLines = block.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+        // find course name
+        const nameLine = bLines.find(l => /اسم المساق/i.test(l));
+        const courseName = nameLine ? (nameLine.split(':').slice(1).join(':').trim()) : '';
+        // find data table lines (lines that start with a digit or look like "1  ثل 9:00**10:00 NB53")
+        for (const l of bLines) {
+          if (/^\d+\s/.test(l) || /^\d+\t/.test(l) || /\d+\s+[^\s]+\s+\d{1,2}:\d{2}/.test(l)) {
+            // split by tabs or multiple spaces
+            const parts = l.split(/\t+/).map(p => p.trim()).filter(Boolean);
+            // if tab-style (columns) we expect: index, day, time, room, ... or index, day, time, room, etc.
+            if (parts.length >= 3) {
+              // try map columns intelligently
+              // sample patterns from your data: "1\tثل\t9:00**10:00\tNB53\t\t\t194\t194\t150\t...المدرس..."
+              // We'll take parts[1] as day, parts[2] as time, parts[3] as room if exists; section might be not present in these rows
+              const idx = parts[0];
+              let section = ''; // sometimes not in column
+              let day = parts[1] || '';
+              let time = parts[2] ? parts[2].replace(/\s*\*\*\s*/g,' - ').trim() : '';
+              let room = parts[3] || '';
+              extractedData.push({
+                course: courseName || '',
+                section: section,
+                day: day,
+                time: time,
+                room: room,
+                raw: l
+              });
+            } else {
+              // try parse the whole line with general parser
+              const parsed = parseCourseLine(l);
+              if (parsed) {
+                // if courseName exists and parsed.course is small (like contains 'شعبة'), prefer courseName
+                if (courseName && (!parsed.course || parsed.course.length < 3)) parsed.course = courseName;
+                extractedData.push(parsed);
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // Case B: line-by-line parse (each line describes one entry)
+      for (const line of lines) {
+        const parsed = parseCourseLine(line);
+        if (parsed) extractedData.push(parsed);
+      }
+    }
+
+    // post-process: if some entries lack course but there are previous course names in data, keep them
+    // also remove duplicates (same course/section/day/time)
+    const seen = new Set();
+    extractedData = extractedData.filter(e => {
+      const key = `${e.course}|${e.section}|${e.day}|${e.time}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    renderCourseList();
+    alert(`تم الاستخراج — ${extractedData.length} سطر/حدث مستخرج`);
+  }
+
+  // 5) عرض القائمة
+  function renderCourseList() {
+    const ul = document.getElementById('courseList');
+    ul.innerHTML = '';
+    if (extractedData.length === 0) {
+      ul.innerHTML = '<li class="note">لا توجد بيانات مستخرجة حتى الآن.</li>';
+      return;
+    }
+    extractedData.forEach((d,i) => {
+      const li = document.createElement('li');
+      li.textContent = `${i+1}. ${d.course || '-'} ${d.section ? '— شعبة ' + d.section : ''} ${d.day ? ' | ' + d.day : ''} ${d.time ? ' | ' + d.time : ''} ${d.room ? ' | ' + d.room : ''}`;
+      ul.appendChild(li);
+    });
+  }
+
+  // 6) إنشاء جدول عرض بسيط (قائمة مرتبة حسب اليوم)
+  function generateSchedule() {
+    if (extractedData.length === 0) return alert('⚠️ لم يتم استخراج أي مواد بعد!');
+    const dayOrder = ['حد','أحد','الالاحد','الاحد','ثن','اثنين','ثل','ربع','الخميس','خميس','الجمعة','سبت','السبت'];
+    const dayMap = { 'السبت':'السبت','سبت':'السبت','الأحد':'الأحد','الاحد':'الأحد','حد':'الأحد','ثن':'الإثنين','اثنين':'الإثنين','الاثنين':'الإثنين','ثل':'الثلاثاء','الثلاثاء':'الثلاثاء','ربع':'الأربعاء','الاربعاء':'الأربعاء','الخميس':'الخميس','جمعة':'الجمعة','الجمعة':'الجمعة' };
+
+    // group by day (keep original order if day unknown)
+    const grouped = {};
+    for (const e of extractedData) {
+      let dayKey = e.day || 'غير محدد';
+      // normalize simple forms
+      if (dayMap[e.day]) dayKey = dayMap[e.day];
+      if (!grouped[dayKey]) grouped[dayKey] = [];
+      grouped[dayKey].push(e);
+    }
+
+    // build HTML table
+    let html = '<table><thead><tr><th>#</th><th>اليوم</th><th>المقرر</th><th>الشعبة</th><th>الوقت</th><th>القاعة</th></tr></thead><tbody>';
+    let idx = 1;
+    // sort keys by dayOrder preference
+    const keys = Object.keys(grouped);
+    keys.sort((a,b) => {
+      const ia = dayOrder.findIndex(x => a.includes(x)) === -1 ? 999 : dayOrder.findIndex(x => a.includes(x));
+      const ib = dayOrder.findIndex(x => b.includes(x)) === -1 ? 999 : dayOrder.findIndex(x => b.includes(x));
+      return ia - ib;
+    });
+    for (const k of keys) {
+      for (const row of grouped[k]) {
+        html += `<tr>
+                   <td>${idx++}</td>
+                   <td>${k}</td>
+                   <td>${escapeHtml(row.course || '-')}</td>
+                   <td>${escapeHtml(row.section || '-')}</td>
+                   <td>${escapeHtml(row.time || '-')}</td>
+                   <td>${escapeHtml(row.room || '-')}</td>
+                 </tr>`;
+      }
+    }
+    html += '</tbody></table>';
+    document.getElementById('scheduleContainer').innerHTML = html;
+  }
+
+  // 7) تحميل TXT — نضيف BOM عشان يفتح عربي مظبوط في برامج ويندوز
+  function downloadTXT() {
+    if (extractedData.length === 0) return alert('⚠️ لا يوجد بيانات!');
+    const lines = extractedData.map(d => `${d.course} - شعبة ${d.section || '-'} | ${d.day || '-'} | ${d.time || '-'} | ${d.room || '-'}`);
+    const content = '\uFEFF' + lines.join('\n'); // BOM
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'courses.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // 8) تحميل Excel (xlsx) باستخدام SheetJS
+  function downloadExcel() {
+    if (extractedData.length === 0) return alert('⚠️ لا يوجد بيانات!');
+    const aoa = [
+      ['المقرر','الشعبة','اليوم','الوقت','القاعة']
+    ];
+    extractedData.forEach(d => {
+      aoa.push([d.course || '', d.section || '', d.day || '', d.time || '', d.room || '']);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'جدول المواد');
+    XLSX.writeFile(wb, 'courses.xlsx');
+  }
+
+  // 9) تحميل PDF — نلتقط عنصر الـ .wrap (يعرض القائمة و الجدول) كصورة ثم نضيفها إلى PDF
+  async function downloadPDF() {
+    if (extractedData.length === 0) return alert('⚠️ لا يوجد بيانات!');
+
+    const el = document.querySelector('.wrap');
+    // زيادة scale لتحسين الجودة
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: null });
+    const imgData = canvas.toDataURL('image/png');
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p','pt','a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+
+    const imgWidth = pdfWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pdfHeight;
+
+    while (heightLeft > 0) {
+      position -= pdfHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+    }
+
+    pdf.save('courses.pdf');
+  }
+
+  // Utility: escapeHtml (to render raw strings safely)
+  function escapeHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Buttons wiring
+  document.getElementById('btnExtract').addEventListener('click', () => {
+    try { extractCourses(); }
+    catch (e) { console.error(e); alert('حدث خطأ أثناء الاستخراج؛ تأكد من النص أو أرسل لي مثال النص الذي تستخدمه.'); }
+  });
+  document.getElementById('btnMakeTable').addEventListener('click', () => {
+    try { generateSchedule(); }
+    catch (e) { console.error(e); alert('خطأ أثناء إنشاء الجدول'); }
+  });
+  document.getElementById('btnTXT').addEventListener('click', () => {
+    try { downloadTXT(); }
+    catch (e) { console.error(e); alert('خطأ في تحميل TXT'); }
+  });
+  document.getElementById('btnExcel').addEventListener('click', () => {
+    try { downloadExcel(); }
+    catch (e) { console.error(e); alert('خطأ في تحميل Excel'); }
+  });
+  document.getElementById('btnPDF').addEventListener('click', () => {
+    try { downloadPDF(); }
+    catch (e) { console.error(e); alert('خطأ في تحميل PDF'); }
+  });
+  document.getElementById('btnClear').addEventListener('click', () => {
+    document.getElementById('inputText').value = '';
+    extractedData = [];
+    renderCourseList();
+    document.getElementById('scheduleContainer').innerHTML = '<div class="note">اضغط "إنشاء جدول" لعرض الجدول هنا.</div>';
+  });
+
+  // بداية: عرض رسالة افتراضية
+  renderCourseList();
+
+  </script>
+
+</body>
+</html>        <div class="card">
+          <h3 style="margin:0 0 8px;color:var(--accent)">📌 قائمة المواد والشُعب</h3>
+          <div class="output" id="listWrap"><ul id="courseList"></ul></div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin:0 0 8px;color:var(--accent)">⚙ معاينة الجدول</h3>
+          <div class="output schedule" id="scheduleContainer">
+            <div class="note">اضغط "إنشاء جدول" لعرض الجدول هنا.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="note" style="text-align:center;margin-top:12px">تم تطويرها بــ HTML/CSS/JS فقط — تدعم إصلاح الترميز العربي وتصدير PDF (صورة) لحل مشاكل التشكيل والخطوط.</p>
+  </div>
+
+  <!-- مكتبات -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script>
+  /**************************************************************************
+   * نسخة محسّنة — إصلاح ترميز النص (mojibake) + استخراج متكامل + تصدير
+   * فكرة مهمة: لتحميل PDF نستخدم html2canvas → صورة → jsPDF
+   * هذا يتجنب مشاكل تشكيل الحروف العربية داخل jsPDF نفسه.
+   **************************************************************************/
+
+  let extractedData = [];
+
+  // 1) إصلاح الترميز إن لزم
+  function fixEncoding(str) {
+    if (!str || typeof str !== 'string') return str;
+    // Try a safe conversion. Only use converted version if it produces Arabic letters
+    try {
+      const converted = decodeURIComponent(escape(str));
+      const hasArabicOrig = /[\u0600-\u06FF]/.test(str);
+      const hasArabicConv = /[\u0600-\u06FF]/.test(converted);
+      // If conversion yields Arabic when original doesn't — use it.
+      if (hasArabicConv && !hasArabicOrig) return converted;
+      return str;
+    } catch (e) {
+      return str;
+    }
+  }
+
+  // 2) دالة مساعدة لتنظيف السطر
+  function normalizeLine(s) {
+    return s.replace(/\u00A0/g,' ').replace(/\t+/g,' ').replace(/\s+/g,' ').trim();
+  }
+
+  // 3) دالة تحليل سطر واحد — تدعم أنماط متعددة
+  function parseCourseLine(line) {
+    line = normalizeLine(line);
+    if (!line) return null;
+
+    // Attempt: split by dash (first dash) to separate course name and details
+    let coursePart = line;
+    let rest = '';
+    const dashMatch = line.match(/[-–—]/);
+    if (dashMatch) {
+      const idx = line.indexOf(dashMatch[0]);
+      coursePart = line.slice(0, idx).trim();
+      rest = line.slice(idx + 1).trim();
+    }
+
+    // If pattern "اسم - شعبة X (day time**time)" common:
+    // extract section (شعبة)
+    let section = '';
+    const sec1 = rest.match(/شعبة\s*([^\s()]+)/i) || coursePart.match(/شعبة\s*([^\s()]+)/i);
+    if (sec1) section = sec1[1].trim();
+
+    // extract parentheses content (likely day/time)
+    let day = '', time = '', room = '';
+    let paren = (rest.match(/\(([^)]+)\)/) || coursePart.match(/\(([^)]+)\)/));
+    if (paren) {
+      const inside = paren[1];
+      // time pattern like 9:00**11:30 (with ** or maybe - or to)
+      const timeMatch = inside.match(/(\d{1,2}:\d{2})\s*\*{2}\s*(\d{1,2}:\d{2})/) ||
+                        inside.match(/(\d{1,2}:\d{2})\s*[-–to]{1,3}\s*(\d{1,2}:\d{2})/i);
+      if (timeMatch) time = `${timeMatch[1]} - ${timeMatch[2]}`;
+
+      // day detection (short forms used in your data)
+      const dayMatch = inside.match(/\b(حد|أحد|الاحد|ثن|اثنين|ثل|الثلاثاء|ربع|الاربعاء|خميس|الجمعة|سبت|السبت)\b/i);
+      if (dayMatch) day = dayMatch[1];
+
+      // room: words like NB53, SF07, LAB, U, SG17, SF06 etc
+      const roomMatch = inside.match(/\b(NB\d+|SF\d+|SG\d+|LAB|U|[A-Z]{2,}\d{0,})\b/i);
+      if (roomMatch) room = roomMatch[1];
+    } else {
+      // fallback: try to find time/day/room in rest without parentheses
+      const timeMatch = rest.match(/(\d{1,2}:\d{2})\s*\*{2}\s*(\d{1,2}:\d{2})/) ||
+                        rest.match(/(\d{1,2}:\d{2})\s*[-–to]{1,3}\s*(\d{1,2}:\d{2})/i);
+      if (timeMatch) time = `${timeMatch[1]} - ${timeMatch[2]}`;
+      const dayMatch = rest.match(/\b(حد|أحد|الاحد|ثن|اثنين|ثل|الثلاثاء|ربع|الاربعاء|خميس|الجمعة|سبت|السبت)\b/i);
+      if (dayMatch) day = dayMatch[1];
+      const roomMatch = rest.match(/\b(NB\d+|SF\d+|SG\d+|LAB|U|[A-Z]{2,}\d{0,})\b/i);
+      if (roomMatch) room = roomMatch[1];
+    }
+
+    // final cleanup of course name: remove trailing 'شعبة ...' in case included
+    let course = coursePart.replace(/\bشعبة\b.*$/i,'').trim();
+    if (!course && rest) {
+      // sometimes course is on the right side
+      course = rest.replace(/\bشعبة\b.*$/i,'').trim();
+    }
+
+    if (!course) return null;
+    return { course, section, day, time, room, raw: line };
+  }
+
+  // 4) الدالة الرئيسية للاستخراج — تدعم بلوكات بتنسيق "اسم المساق:" و كذلك سطور مفردة
+  function extractCourses() {
+    const raw = document.getElementById('inputText').value || '';
+    const fixed = fixEncoding(raw);
+    const lines = fixed.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+    extractedData = [];
+
+    const fullText = lines.join('\n');
+
+    // Case A: block-style input containing "اسم المساق" => parse blocks
+    if (/اسم المساق/i.test(fullText) || /رمز المساق/i.test(fullText)) {
+      // split into blocks by "رقم السطر" or "رمز المساق" or blank lines
+      const blocks = fullText.split(/\r?\n(?=رقم السطر:|رمز المساق:|اسم المساق:)/i);
+      for (const block of blocks) {
+        const bLines = block.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+        // find course name
+        const nameLine = bLines.find(l => /اسم المساق/i.test(l));
+        const courseName = nameLine ? (nameLine.split(':').slice(1).join(':').trim()) : '';
+        // find data table lines (lines that start with a digit or look like "1  ثل 9:00**10:00 NB53")
+        for (const l of bLines) {
+          if (/^\d+\s/.test(l) || /^\d+\t/.test(l) || /\d+\s+[^\s]+\s+\d{1,2}:\d{2}/.test(l)) {
+            // split by tabs or multiple spaces
+            const parts = l.split(/\t+/).map(p => p.trim()).filter(Boolean);
+            // if tab-style (columns) we expect: index, day, time, room, ... or index, day, time, room, etc.
+            if (parts.length >= 3) {
+              // try map columns intelligently
+              // sample patterns from your data: "1\tثل\t9:00**10:00\tNB53\t\t\t194\t194\t150\t...المدرس..."
+              // We'll take parts[1] as day, parts[2] as time, parts[3] as room if exists; section might be not present in these rows
+              const idx = parts[0];
+              let section = ''; // sometimes not in column
+              let day = parts[1] || '';
+              let time = parts[2] ? parts[2].replace(/\s*\*\*\s*/g,' - ').trim() : '';
+              let room = parts[3] || '';
+              extractedData.push({
+                course: courseName || '',
+                section: section,
+                day: day,
+                time: time,
+                room: room,
+                raw: l
+              });
+            } else {
+              // try parse the whole line with general parser
+              const parsed = parseCourseLine(l);
+              if (parsed) {
+                // if courseName exists and parsed.course is small (like contains 'شعبة'), prefer courseName
+                if (courseName && (!parsed.course || parsed.course.length < 3)) parsed.course = courseName;
+                extractedData.push(parsed);
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // Case B: line-by-line parse (each line describes one entry)
+      for (const line of lines) {
+        const parsed = parseCourseLine(line);
+        if (parsed) extractedData.push(parsed);
+      }
+    }
+
+    // post-process: if some entries lack course but there are previous course names in data, keep them
+    // also remove duplicates (same course/section/day/time)
+    const seen = new Set();
+    extractedData = extractedData.filter(e => {
+      const key = `${e.course}|${e.section}|${e.day}|${e.time}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    renderCourseList();
+    alert(`تم الاستخراج — ${extractedData.length} سطر/حدث مستخرج`);
+  }
+
+  // 5) عرض القائمة
+  function renderCourseList() {
+    const ul = document.getElementById('courseList');
+    ul.innerHTML = '';
+    if (extractedData.length === 0) {
+      ul.innerHTML = '<li class="note">لا توجد بيانات مستخرجة حتى الآن.</li>';
+      return;
+    }
+    extractedData.forEach((d,i) => {
+      const li = document.createElement('li');
+      li.textContent = `${i+1}. ${d.course || '-'} ${d.section ? '— شعبة ' + d.section : ''} ${d.day ? ' | ' + d.day : ''} ${d.time ? ' | ' + d.time : ''} ${d.room ? ' | ' + d.room : ''}`;
+      ul.appendChild(li);
+    });
+  }
+
+  // 6) إنشاء جدول عرض بسيط (قائمة مرتبة حسب اليوم)
+  function generateSchedule() {
+    if (extractedData.length === 0) return alert('⚠️ لم يتم استخراج أي مواد بعد!');
+    const dayOrder = ['حد','أحد','الالاحد','الاحد','ثن','اثنين','ثل','ربع','الخميس','خميس','الجمعة','سبت','السبت'];
+    const dayMap = { 'السبت':'السبت','سبت':'السبت','الأحد':'الأحد','الاحد':'الأحد','حد':'الأحد','ثن':'الإثنين','اثنين':'الإثنين','الاثنين':'الإثنين','ثل':'الثلاثاء','الثلاثاء':'الثلاثاء','ربع':'الأربعاء','الاربعاء':'الأربعاء','الخميس':'الخميس','جمعة':'الجمعة','الجمعة':'الجمعة' };
+
+    // group by day (keep original order if day unknown)
+    const grouped = {};
+    for (const e of extractedData) {
+      let dayKey = e.day || 'غير محدد';
+      // normalize simple forms
+      if (dayMap[e.day]) dayKey = dayMap[e.day];
+      if (!grouped[dayKey]) grouped[dayKey] = [];
+      grouped[dayKey].push(e);
+    }
+
+    // build HTML table
+    let html = '<table><thead><tr><th>#</th><th>اليوم</th><th>المقرر</th><th>الشعبة</th><th>الوقت</th><th>القاعة</th></tr></thead><tbody>';
+    let idx = 1;
+    // sort keys by dayOrder preference
+    const keys = Object.keys(grouped);
+    keys.sort((a,b) => {
+      const ia = dayOrder.findIndex(x => a.includes(x)) === -1 ? 999 : dayOrder.findIndex(x => a.includes(x));
+      const ib = dayOrder.findIndex(x => b.includes(x)) === -1 ? 999 : dayOrder.findIndex(x => b.includes(x));
+      return ia - ib;
+    });
+    for (const k of keys) {
+      for (const row of grouped[k]) {
+        html += `<tr>
+                   <td>${idx++}</td>
+                   <td>${k}</td>
+                   <td>${escapeHtml(row.course || '-')}</td>
+                   <td>${escapeHtml(row.section || '-')}</td>
+                   <td>${escapeHtml(row.time || '-')}</td>
+                   <td>${escapeHtml(row.room || '-')}</td>
+                 </tr>`;
+      }
+    }
+    html += '</tbody></table>';
+    document.getElementById('scheduleContainer').innerHTML = html;
+  }
+
+  // 7) تحميل TXT — نضيف BOM عشان يفتح عربي مظبوط في برامج ويندوز
+  function downloadTXT() {
+    if (extractedData.length === 0) return alert('⚠️ لا يوجد بيانات!');
+    const lines = extractedData.map(d => `${d.course} - شعبة ${d.section || '-'} | ${d.day || '-'} | ${d.time || '-'} | ${d.room || '-'}`);
+    const content = '\uFEFF' + lines.join('\n'); // BOM
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'courses.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // 8) تحميل Excel (xlsx) باستخدام SheetJS
+  function downloadExcel() {
+    if (extractedData.length === 0) return alert('⚠️ لا يوجد بيانات!');
+    const aoa = [
+      ['المقرر','الشعبة','اليوم','الوقت','القاعة']
+    ];
+    extractedData.forEach(d => {
+      aoa.push([d.course || '', d.section || '', d.day || '', d.time || '', d.room || '']);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'جدول المواد');
+    XLSX.writeFile(wb, 'courses.xlsx');
+  }
+
+  // 9) تحميل PDF — نلتقط عنصر الـ .wrap (يعرض القائمة و الجدول) كصورة ثم نضيفها إلى PDF
+  async function downloadPDF() {
+    if (extractedData.length === 0) return alert('⚠️ لا يوجد بيانات!');
+
+    const el = document.querySelector('.wrap');
+    // زيادة scale لتحسين الجودة
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: null });
+    const imgData = canvas.toDataURL('image/png');
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p','pt','a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+
+    const imgWidth = pdfWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pdfHeight;
+
+    while (heightLeft > 0) {
+      position -= pdfHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+    }
+
+    pdf.save('courses.pdf');
+  }
+
+  // Utility: escapeHtml (to render raw strings safely)
+  function escapeHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Buttons wiring
+  document.getElementById('btnExtract').addEventListener('click', () => {
+    try { extractCourses(); }
+    catch (e) { console.error(e); alert('حدث خطأ أثناء الاستخراج؛ تأكد من النص أو أرسل لي مثال النص الذي تستخدمه.'); }
+  });
+  document.getElementById('btnMakeTable').addEventListener('click', () => {
+    try { generateSchedule(); }
+    catch (e) { console.error(e); alert('خطأ أثناء إنشاء الجدول'); }
+  });
+  document.getElementById('btnTXT').addEventListener('click', () => {
+    try { downloadTXT(); }
+    catch (e) { console.error(e); alert('خطأ في تحميل TXT'); }
+  });
+  document.getElementById('btnExcel').addEventListener('click', () => {
+    try { downloadExcel(); }
+    catch (e) { console.error(e); alert('خطأ في تحميل Excel'); }
+  });
+  document.getElementById('btnPDF').addEventListener('click', () => {
+    try { downloadPDF(); }
+    catch (e) { console.error(e); alert('خطأ في تحميل PDF'); }
+  });
+  document.getElementById('btnClear').addEventListener('click', () => {
+    document.getElementById('inputText').value = '';
+    extractedData = [];
+    renderCourseList();
+    document.getElementById('scheduleContainer').innerHTML = '<div class="note">اضغط "إنشاء جدول" لعرض الجدول هنا.</div>';
+  });
+
+  // بداية: عرض رسالة افتراضية
+  renderCourseList();
+
+  </script>
+
+</body>
+</html>    /* جدول */
     .schedule {
       margin-top: 25px;
       overflow-x: auto;
