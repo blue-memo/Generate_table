@@ -111,93 +111,52 @@
     <div class="schedule" id="scheduleContainer"></div>
   </div>
 
-  <!-- مكتبات للتصدير -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- أضف المكتبة الخاصة بالـ autoTable -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 
-  <script>
-    let extractedData = [];
+<script>
+  async function downloadPDF() {
+    if (extractedData.length === 0) return alert("⚠️ لا يوجد بيانات!");
 
-    function extractCourses() {
-      const text = document.getElementById("inputText").value;
-      const lines = text.split("\n");
-      extractedData = [];
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "pt",
+      format: "a4"
+    });
 
-      let currentCourse = "";
-      lines.forEach(line => {
-        if (line.includes("اسم المساق")) {
-          currentCourse = line.split(":")[1]?.trim();
-        }
-        if (/^\d+\s/.test(line)) {
-          const parts = line.split("\t").map(p=>p.trim()).filter(p=>p);
-          if (parts.length >= 3) {
-            extractedData.push({
-              course: currentCourse,
-              section: parts[0],
-              day: parts[1],
-              time: parts[2],
-              room: parts[3] || ""
-            });
-          }
-        }
-      });
+    // تحميل خط كايرو وإضافته للـ jsPDF
+    const fontUrl = "https://cdn.jsdelivr.net/npm/@fontsource/cairo/files/cairo-arabic-400-normal.woff";
+    const font = await fetch(fontUrl).then(r => r.arrayBuffer());
+    doc.addFileToVFS("Cairo.ttf", font);
+    doc.addFont("Cairo.ttf", "Cairo", "normal");
+    doc.setFont("Cairo");
 
-      const list = document.getElementById("courseList");
-      list.innerHTML = "";
-      extractedData.forEach(d => {
-        const li = document.createElement("li");
-        li.textContent = `${d.course} — شعبة ${d.section} (${d.day} ${d.time})`;
-        list.appendChild(li);
-      });
-    }
+    // العنوان
+    doc.setFontSize(16);
+    doc.text("📋 قائمة المواد والشعب", 300, 40, { align: "center" });
 
-    function generateSchedule() {
-      if (extractedData.length === 0) return alert("⚠️ لم يتم استخراج أي مواد!");
+    // تجهيز البيانات للجدول
+    const rows = extractedData.map((d, i) => [
+      i + 1,
+      d.course,
+      d.section,
+      d.day,
+      d.time,
+      d.room
+    ]);
 
-      const days = ["حد","ثن","ثل","ربع","خميس"];
-      let html = "<table><tr><th>اليوم</th><th>المقرر</th><th>الشعبة</th><th>الوقت</th><th>القاعة</th></tr>";
+    // إنشاء الجدول
+    doc.autoTable({
+      startY: 60,
+      head: [["#", "المقرر", "الشعبة", "اليوم", "الوقت", "القاعة"]],
+      body: rows,
+      styles: { font: "Cairo", fontStyle: "normal", halign: "center" },
+      headStyles: { fillColor: [56, 189, 248] },
+    });
 
-      extractedData.forEach(d => {
-        html += `<tr>
-                  <td>${d.day}</td>
-                  <td>${d.course}</td>
-                  <td>${d.section}</td>
-                  <td>${d.time}</td>
-                  <td>${d.room}</td>
-                 </tr>`;
-      });
-      html += "</table>";
-      document.getElementById("scheduleContainer").innerHTML = html;
-    }
-
-    function downloadTXT() {
-      if (extractedData.length === 0) return alert("⚠️ لا يوجد بيانات!");
-      let content = extractedData.map(d => `${d.course} - شعبة ${d.section} (${d.day} ${d.time})`).join("\n");
-      const blob = new Blob([content], { type: "text/plain" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "courses.txt";
-      link.click();
-    }
-
-    function downloadPDF() {
-      if (extractedData.length === 0) return alert("⚠️ لا يوجد بيانات!");
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      doc.text("قائمة المواد والشعب:", 10, 10);
-      extractedData.forEach((d,i) => {
-        doc.text(`${i+1}. ${d.course} - شعبة ${d.section} (${d.day} ${d.time})`, 10, 20+(i*10));
-      });
-      doc.save("courses.pdf");
-    }
-
-    function downloadExcel() {
-      if (extractedData.length === 0) return alert("⚠️ لا يوجد بيانات!");
-      const ws = XLSX.utils.json_to_sheet(extractedData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "جدول المواد");
-      XLSX.writeFile(wb, "courses.xlsx");
-    }
-  </script>
+    doc.save("courses.pdf");
+  }
+</script>
 </body>
 </html>
