@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>منصة تنظيم الجداول</title>
+  <style>
+    /* Reset */
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Cairo", sans-serif; }
+    body { background: #0f172a; color: #f8fafc; line-height: 1.6; }
+    h1 { text-align: center; font-size: 2rem; margin: 20px 0; color: #38bdf8; }
+
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 20px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 180px;
+      padding: 15px;
+      background: #1e293b;
+      color: #f1f5f9;
+      border: 2px solid #334155;
+      border-radius: 12px;
+      font-size: 1rem;
+      resize: vertical;
+      transition: .3s;
+    }
+    textarea:focus { border-color: #38bdf8; outline: none; }
+
+    .buttons {
+      margin: 15px 0;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: bold;
+      background: linear-gradient(135deg,#3b82f6,#06b6d4);
+      color: white;
+      transition: .3s;
+    }
+    button:hover { transform: scale(1.05); }
+
+    .output {
+      margin-top: 20px;
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+    }
+    .output h2 { margin-bottom: 10px; color: #38bdf8; }
+
+    ul { list-style: none; }
+    ul li {
+      padding: 6px 0;
+      border-bottom: 1px solid #334155;
+    }
+
+    /* جدول */
+    .schedule {
+      margin-top: 25px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+      background: #1e293b;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td {
+      border: 1px solid #334155;
+      padding: 10px;
+      font-size: 0.9rem;
+    }
+    th {
+      background: #0ea5e9;
+      color: #fff;
+    }
+    td { color: #e2e8f0; }
+  </style>
+</head>
+<body>
+
+  <h1>منصة تنظيم الجداول الدراسية</h1>
+
+  <div class="container">
+    <textarea id="inputText" placeholder="📋 الصق النص هنا..."></textarea>
+
+    <div class="buttons">
+      <button onclick="extractCourses()">📑 استخراج المواد</button>
+      <button onclick="generateSchedule()">📅 إنشاء جدول</button>
+      <button onclick="downloadTXT()">⬇️ تحميل TXT</button>
+      <button onclick="downloadPDF()">⬇️ تحميل PDF</button>
+      <button onclick="downloadExcel()">⬇️ تحميل Excel</button>
+    </div>
+
+    <div class="output">
+      <h2>📌 قائمة المواد والشعب</h2>
+      <ul id="courseList"></ul>
+    </div>
+
+    <div class="schedule" id="scheduleContainer"></div>
+  </div>
+
+  <!-- مكتبات للتصدير -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script>
+    let extractedData = [];
+
+    function extractCourses() {
+      const text = document.getElementById("inputText").value;
+      const lines = text.split("\n");
+      extractedData = [];
+
+      let currentCourse = "";
+      lines.forEach(line => {
+        if (line.includes("اسم المساق")) {
+          currentCourse = line.split(":")[1]?.trim();
+        }
+        if (/^\d+\s/.test(line)) {
+          const parts = line.split("\t").map(p=>p.trim()).filter(p=>p);
+          if (parts.length >= 3) {
+            extractedData.push({
+              course: currentCourse,
+              section: parts[0],
+              day: parts[1],
+              time: parts[2],
+              room: parts[3] || ""
+            });
+          }
+        }
+      });
+
+      const list = document.getElementById("courseList");
+      list.innerHTML = "";
+      extractedData.forEach(d => {
+        const li = document.createElement("li");
+        li.textContent = `${d.course} — شعبة ${d.section} (${d.day} ${d.time})`;
+        list.appendChild(li);
+      });
+    }
+
+    function generateSchedule() {
+      if (extractedData.length === 0) return alert("⚠️ لم يتم استخراج أي مواد!");
+
+      const days = ["حد","ثن","ثل","ربع","خميس"];
+      let html = "<table><tr><th>اليوم</th><th>المقرر</th><th>الشعبة</th><th>الوقت</th><th>القاعة</th></tr>";
+
+      extractedData.forEach(d => {
+        html += `<tr>
+                  <td>${d.day}</td>
+                  <td>${d.course}</td>
+                  <td>${d.section}</td>
+                  <td>${d.time}</td>
+                  <td>${d.room}</td>
+                 </tr>`;
+      });
+      html += "</table>";
+      document.getElementById("scheduleContainer").innerHTML = html;
+    }
+
+    function downloadTXT() {
+      if (extractedData.length === 0) return alert("⚠️ لا يوجد بيانات!");
+      let content = extractedData.map(d => `${d.course} - شعبة ${d.section} (${d.day} ${d.time})`).join("\n");
+      const blob = new Blob([content], { type: "text/plain" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "courses.txt";
+      link.click();
+    }
+
+    function downloadPDF() {
+      if (extractedData.length === 0) return alert("⚠️ لا يوجد بيانات!");
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text("قائمة المواد والشعب:", 10, 10);
+      extractedData.forEach((d,i) => {
+        doc.text(`${i+1}. ${d.course} - شعبة ${d.section} (${d.day} ${d.time})`, 10, 20+(i*10));
+      });
+      doc.save("courses.pdf");
+    }
+
+    function downloadExcel() {
+      if (extractedData.length === 0) return alert("⚠️ لا يوجد بيانات!");
+      const ws = XLSX.utils.json_to_sheet(extractedData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "جدول المواد");
+      XLSX.writeFile(wb, "courses.xlsx");
+    }
+  </script>
+</body>
+</html>
